@@ -453,21 +453,6 @@ func (b *Bmatrix) handleReply(ev *matrix.Event, rmsg config.Message) bool {
 
 	body := rmsg.Text
 
-	// get the replied-to event's content
-	var relatedEvent matrix.Event
-	eventID := relation.InReplyTo.EventID
-	url := b.mc.BuildURL("rooms", ev.RoomID,  "event", eventID)
-	err := b.mc.MakeRequest("GET", url, nil, &relatedEvent)
-	b.Log.Debugf("== Looked up reply: %s: %#v, %#v", eventID, relatedEvent.Content, err)
-	if err == nil && relatedEvent.Type == "m.room.message" {
-		b.Log.Debugf("== %s is of type m.room.message, quoting", eventID)
-		relatedBody, ok := relatedEvent.Body()
-		if ok {
-			quote := "> " + strings.ReplaceAll(relatedBody, "\n", "\n> ")
-			body = quote + "\n\n" + body
-		}
-	}
-
 	if !b.GetBool("keepquotedreply") {
 		for strings.HasPrefix(body, "> ") {
 			lineIdx := strings.IndexRune(body, '\n')
@@ -476,6 +461,29 @@ func (b *Bmatrix) handleReply(ev *matrix.Event, rmsg config.Message) bool {
 			} else {
 				body = body[(lineIdx + 1):]
 			}
+		}
+	}
+
+	// get the replied-to event's content
+	var relatedEvent matrix.Event
+	eventID := relation.InReplyTo.EventID
+	url := b.mc.BuildURL("rooms", ev.RoomID,  "event", eventID)
+	err := b.mc.MakeRequest("GET", url, nil, &relatedEvent)
+	b.Log.Debugf("== Looked up reply: %s: %#v (error: %#v)", eventID, relatedEvent.Content, err)
+	if err == nil && relatedEvent.Type == "m.room.message" {
+		b.Log.Debugf("== %s is of type m.room.message, quoting", eventID)
+		relatedBody, ok := relatedEvent.Body()
+		if ok {
+			for strings.HasPrefix(relatedBody, "> ") {
+				lineIdx := strings.IndexRune(relatedBody, '\n')
+				if lineIdx == -1 {
+					relatedBody = ""
+				} else {
+					relatedBody = relatedBody[(lineIdx + 1):]
+				}
+			}
+			quote := "> " + strings.ReplaceAll(relatedBody, "\n", "\n> ")
+			body = quote + "\n\n" + body
 		}
 	}
 
